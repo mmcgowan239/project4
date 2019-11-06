@@ -1,0 +1,139 @@
+---
+title: "Unsupervised Learning"
+output: html_notebook
+---
+
+1. Select a dataset of interest and perform a cluster analysis of your data for 2, 3, 4, 5, 6, 7 clusters using either k-means or hierarchical clustering 
+Initial Data Exploration - Summary Plots: 
+```{r}
+library(cluster)
+library(datasets)
+data("USArrests")
+head(USArrests)
+
+USArrests.2 <- cbind(rownames(USArrests), USArrests)
+head(USArrests.2)
+   
+par(mfrow = c(2,2))
+# Histogram w/ kernel density of Murder Arrests
+hist(USArrests$Murder, main = "Histogram of Murder Arrests",
+     xlab = "Murder", las = 1, col = "magenta", prob = TRUE)
+     lines(density(USArrests$Murder), col = "blue")
+
+# Histogram w/ kernel density of Assault Arrests  
+hist(USArrests$Assault, main = "Histogram of Assault Arrests",
+    xlab = "Assault", las = 1, col = "magenta", prob = TRUE)
+    lines(density(USArrests$Assault), col = "blue")
+    
+ # Histogram w/ kernel density of Urban Crime Population  
+hist(USArrests$UrbanPop, main = "Histogram of Urban Crime Pop %",
+    xlab = "UrbanPop", las = 1, col = "magenta", prob = TRUE)
+    lines(density(USArrests$UrbanPop), col = "blue")
+    
+# Histogram w/ kernel density of Rape Arrests  
+hist(USArrests$Rape, main = "Histogram of Rape Arrests",
+    xlab = "Rape", las = 1, col = "magenta", prob = TRUE)
+    lines(density(USArrests$Rape), col = "blue")
+```
+We don't see a lot of heavy skewing to the right our left. Plots are generally symmetrical. It is also clear that assault arrests are far more common than rape or murder arrests. 50-80% of the population living in urban areas was also most common at this time.  
+
+Scatter Plot Matrix:
+```{r}
+kDatPlot <- subset(USArrests, select = c(Murder, Assault, UrbanPop, Rape)) 
+
+splabel = c("Murder", "Assault", "UrbanPop", "Rape"); par(cex.main = 2)
+
+pairs(kDatPlot, main = "Matrix Scatter Plot", label = splabel, font.labels = 4) #bivariate plot
+```
+The scatter plot matrix indicates that graphs involving UrbanPop generally show consistent and random scatter. There is indication that more crime also happens in more densely populated states. When murder, assault and rape are graphed together, they generally show a positive relationship.
+
+Summary Statistics + Scaling:
+```{r}
+colMeans(USArrests); apply(USArrests, 2, sd)
+USArrests.scaled <- scale(USArrests)
+colnames(USArrests.scaled) <- c("Zmurder", "Zassault", "Zurbanpop", "Zrape")
+head(USArrests.scaled)
+```
+I scaled the data here for the purpose of optimal accuracy in my cluster analysis in the subsequent step.
+
+R-code: Choosing the # of clusters using WSS and dendogram:
+```{r}
+kDat <- subset(USArrests.scaled, select = c(Zmurder, Zassault, Zurbanpop, Zrape))
+n <- length(kDat[,1])
+
+wss1 <- (n-1)*sum(apply(kDat, 2, var))
+wss <- numeric(0)
+
+for(i in 2:10)
+{
+  W <- sum(kmeans(kDat, i)$withinss)
+  wss <- c(wss, W)
+}; wss <- c(wss1, wss)
+
+plot(1:10, wss, type = "b", xlab = "Number of Groups", ylab = "Within groups sum of squares", lwd = 2, col = "blue")
+
+# Dendogram
+dist_matrix <- dist(USArrests.scaled)
+hclust_out <- hclust(dist_matrix)
+plot(hclust_out)
+abline(h = 4, col = "red")
+```
+Rate of decrease slows at 4 clusters. After creating the WSS plot and manupulating the data with different selected clusters (2, 3, 4), I elected to also create a dendogram as more evidence of the rate of decrease slowing at 4 clusters as opposed to fewer. 
+
+R-code K-Means Solution, stats and MDS Plot
+```{r}
+# k-means (4 cluster)
+   set.seed(555)
+   k2 <- kmeans(kDat, 4, algorithm = "MacQueen")
+   k2
+   
+#Cluster using standardized data, plot using unstandardized.
+kDatPlot <- subset(USArrests, select = c(Murder, Assault, UrbanPop, Rape))
+
+#MDS Plot
+clusplot(kDatPlot, k2$cluster, main = "MDS Plot, US Arrests Data = k4", col.p = k2$cluster)
+```
+
+2. Evaluate each partition above by creating a Silhouette plot.
+```{r}
+# k-means Cluster Silhoutte Plot
+   siK2 <- silhouette(k2$cluster, daisy(USArrests.scaled[,1:4]))
+   plot(siK2 , main = "Silhouette Plot k-means", col = "blue")
+```
+
+3. Choose an optimal solution based on your results in step (3).
+
+Selected a model with 4 clusters due to results from WSS analysis, dendogram and the silhouette plot output. It woud be nice to see an average silhoutte a bit closer to 1, but results indicates appropriate classification.
+
+4. Profile each cluster from your optimal solution using graphical depictions, summary numbers, etc. and give an intuitive description of each cluster
+Summary numbers:
+```{r}
+library(psych)
+
+# k-means
+  kMeansDat <- cbind(USArrests, group = k2$cluster)
+  describeBy(kMeansDat, kMeansDat$group) 
+  
+  table(USArrests.2$`rownames(USArrests)`, k2$cluster)
+```
+Further graphical depictions and data study:
+```{r}
+  k2$size
+  k2$centers
+
+ kDatPlot.2 <- subset(USArrests, select = c(Murder, Assault, UrbanPop, Rape)) 
+
+  splabel.2 = c("Murder", "Assault", "UrbanPop", "Rape"); par(cex.main = 2)
+
+  pairs(kDatPlot.2, main = "Matrix Scatter Plot", label = splabel.2, font.labels = 4, col =   k2$cluster) #bivariate plot 
+
+  clusplot(USArrests, k2$cluster, color=TRUE, shade=TRUE, 
+   labels=2, lines=0)
+```
+Cluster 1 is the largest cluster, including 19 states. It is characterized by states that, generally, fall towards the center of the data (average urban population as well as murder, assault and rape arrests).
+
+Cluster 2 consisted of 12 different states. It is characterized by the high number of average assault arrests along with the highest average urban population density.
+
+Cluster 3 consisted of 10 different states. This cluster is characterized by the lowest arrest rates and, generally, the lowest urban population densities.
+
+Cluster 4 was the smallest at 9 total states. This cluster is characterized by the second highest average assault rate. It also shows a common thread of Southern states, which could indicate a significant finding for further study.
